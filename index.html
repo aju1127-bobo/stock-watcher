@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="盯盘">
+<title>盯盘助手</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{
+  --bg:#0a0a0a;--surface:#141414;--surface2:#1e1e1e;
+  --border:rgba(255,255,255,0.08);--text:#f0f0f0;--text2:#888;--text3:#444;
+  --green:#00c471;--red:#ff4d4d;--gold:#f5a623;
+  --radius:14px;--font:'SF Pro Display',-apple-system,'PingFang SC','Noto Sans SC',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100dvh;padding-bottom:90px;overflow-x:hidden}
+
+.header{position:sticky;top:0;z-index:100;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:16px 20px 12px;border-bottom:.5px solid var(--border)}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.app-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.app-title span{color:var(--gold)}
+.live-badge{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+
+.search-row{display:flex;gap:8px}
+.search-wrap{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:.5px solid var(--border);border-radius:12px;padding:9px 14px}
+.search-wrap input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:15px;font-family:var(--font)}
+.search-wrap input::placeholder{color:var(--text3)}
+.search-btn{background:var(--gold);color:#000;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;flex-shrink:0}
+.search-btn:active{opacity:.8}
+
+.tabs{display:flex;gap:6px;padding:12px 20px 0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:6px 14px;border-radius:20px;border:.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:13px;cursor:pointer;transition:all .2s}
+.tab.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:600}
+
+.section{padding:14px 20px 0}
+.section-title{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+
+.stock-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;cursor:pointer;position:relative;overflow:hidden;transition:background .15s}
+.stock-card:active{background:var(--surface2)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.sname{font-size:15px;font-weight:600}
+.scode{font-size:11px;color:var(--text2);margin-top:2px}
+.sprice{text-align:right}
+.pval{font-size:20px;font-weight:700;letter-spacing:-.5px}
+.pchg{font-size:12px;font-weight:600;margin-top:2px}
+.up{color:var(--red)}.down{color:var(--green)}.flat{color:var(--text2)}
+
+.card-metrics{display:flex}
+.metric{flex:1;border-right:.5px solid var(--border);padding-right:10px;margin-right:10px}
+.metric:last-child{border:none;padding:0;margin:0}
+.mlabel{font-size:10px;color:var(--text3);margin-bottom:3px}
+.mval{font-size:12px;color:var(--text2)}
+
+.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600}
+.b-up{background:rgba(255,77,77,.15);color:var(--red)}
+.b-down{background:rgba(0,196,113,.15);color:var(--green)}
+.b-flat{background:rgba(255,255,255,.07);color:var(--text2)}
+
+.sparkline{position:absolute;bottom:0;right:0;width:90px;height:44px;opacity:.2;pointer-events:none}
+
+/* 骨架屏 */
+.skel-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px}
+.skel{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:400px 100%;animation:shimmer 1.4s infinite;border-radius:4px;height:13px;display:block}
+
+/* 详情面板 */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:flex-end}
+.overlay.open{display:flex}
+.panel{width:100%;background:var(--surface);border-radius:24px 24px 0 0;padding:0 20px 40px;max-height:88dvh;overflow-y:auto;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
+.handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 18px}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.pname{font-size:20px;font-weight:700}
+.pcode{font-size:13px;color:var(--text2);margin-top:3px}
+.pprice{text-align:right}
+.ppval{font-size:30px;font-weight:800;letter-spacing:-1px}
+.ppchg{font-size:14px;font-weight:600;margin-top:4px}
+
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.pmetric{background:var(--surface2);border-radius:10px;padding:10px 12px}
+.pmlabel{font-size:10px;color:var(--text3);margin-bottom:4px}
+.pmval{font-size:14px;font-weight:600}
+
+.slabel{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:14px 0 8px}
+.irow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:.5px solid var(--border)}
+.iname{font-size:14px}
+.ival{font-size:13px;font-weight:600}
+.isig{font-size:11px;margin-top:1px;text-align:right;color:var(--text3)}
+
+.fund-bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:6px}
+.fund-fill{height:100%;border-radius:3px;transition:width .6s}
+
+.tip-box{background:rgba(245,166,35,.07);border:.5px solid rgba(245,166,35,.2);border-radius:10px;padding:10px 14px;margin-top:6px;font-size:12px;line-height:1.7;color:var(--text2)}
+
+.refresh-btn{width:100%;padding:13px;margin-top:14px;background:var(--gold);color:#000;border:none;border-radius:var(--radius);font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer}
+.refresh-btn:disabled{opacity:.5}
+.close-btn{width:100%;padding:12px;margin-top:8px;background:var(--surface2);color:var(--text2);border:none;border-radius:var(--radius);font-size:14px;font-family:var(--font);cursor:pointer}
+
+.status-bar{text-align:center;padding:10px;font-size:12px;color:var(--text3)}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:.5px solid var(--border);display:flex;padding:8px 0 max(8px,env(safe-area-inset-bottom))}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;color:var(--text3);font-size:10px}
+.nav-item.active{color:var(--gold)}
+.nav-icon{font-size:20px}
+
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--surface2);color:var(--text);padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;border:.5px solid var(--border);white-space:nowrap;pointer-events:none}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="app-title">盯<span>盘</span>助手</div>
+    <div class="live-badge"><span class="dot" id="liveDot"></span><span id="mktStatus">连接中…</span></div>
+  </div>
+  <div class="search-row">
+    <div class="search-wrap">
+      <svg width="15" height="15" fill="none" stroke="#444" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="searchInput" type="text" placeholder="输入代码：600519 / 00700 / AAPL">
+    </div>
+    <button class="search-btn" onclick="doSearch()">查询</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(this,'all')">全部</div>
+  <div class="tab" onclick="switchTab(this,'a')">A股</div>
+  <div class="tab" onclick="switchTab(this,'hk')">港股</div>
+  <div class="tab" onclick="switchTab(this,'us')">美股</div>
+  <div class="tab" onclick="switchTab(this,'gold')">黄金</div>
+</div>
+
+<div class="section">
+  <div class="section-title">自选股 · 东方财富实时数据</div>
+  <div id="watchlist"></div>
+  <div class="status-bar" id="statusBar">数据加载中…</div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePanel(event)">
+  <div class="panel"><div class="handle"></div><div id="panelContent"></div></div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item active"><span class="nav-icon">⭐</span><span>自选</span></div>
+  <div class="nav-item" onclick="refreshAll()"><span class="nav-icon">🔄</span><span>刷新</span></div>
+  <div class="nav-item" onclick="showAddTip()"><span class="nav-icon">＋</span><span>添加</span></div>
+  <div class="nav-item" onclick="showHelp()"><span class="nav-icon">❓</span><span>帮助</span></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// 东方财富 secid 规则：
+//   A股沪市(6开头) → "1.600519"
+//   A股深市(0/3开头) → "0.300750"
+//   港股 → "116.00700"
+//   美股 → "105.AAPL"
+//   黄金期货(AU9999) → "0.Au9999" 或直接用美股黄金 "105.XAUUSD"
+// 字段说明：
+//   f43=现价 f170=涨跌幅(%) f169=涨跌额
+//   f44=最高 f45=最低 f46=今开 f60=昨收
+//   f47=成交量(手) f48=成交额 f168=换手率
+//   f57=代码 f58=名称 f107=市场代码
+//   f62=主力净流入 f164=5日净流入 f163=10日净流入
+// ═══════════════════════════════════════════════════
+
+const WATCHLIST = [
+  { secid:'1.600519', name:'贵州茅台',   market:'A股',  code:'600519' },
+  { secid:'0.300750', name:'宁德时代',   market:'A股',  code:'300750' },
+  { secid:'1.601318', name:'中国平安',   market:'A股',  code:'601318' },
+  { secid:'116.00700',name:'腾讯控股',   market:'港股', code:'00700'  },
+  { secid:'116.09988',name:'阿里巴巴',   market:'港股', code:'09988'  },
+  { secid:'105.AAPL', name:'苹果',       market:'美股', code:'AAPL'   },
+  { secid:'105.TSLA', name:'特斯拉',     market:'美股', code:'TSLA'   },
+  { secid:'0.Au9999', name:'黄金现货',   market:'黄金', code:'Au9999' },
+];
+
+// 东方财富公开接口（无需Key，直接调用）
+const EM_API   = 'https://push2.eastmoney.com/api/qt/stock/get';
+const EM_FIELDS= 'f43,f44,f45,f46,f47,f48,f57,f58,f60,f107,f162,f163,f164,f168,f169,f170,f62,f71,f116,f117';
+const CORS     = 'https://corsproxy.io/?';
+
+let stockData  = {};
+let curFilter  = 'all';
+let curSecid   = null;
+
+// ── 东方财富数据获取 ──────────────────────────────────────
+async function fetchEM(secid) {
+  const params = new URLSearchParams({
+    ut: 'fa5fd1943c7b386f172d6893dbfba10b',
+    invt: '2', fltt: '2',
+    fields: EM_FIELDS,
+    secid: secid,
+  });
+  const url = `${EM_API}?${params}`;
+  try {
+    // 先尝试直连（可能因跨域失败）
+    let resp;
+    try {
+      resp = await fetch(url, { mode: 'cors' });
+    } catch {
+      // 跨域失败则走代理
+      resp = await fetch(CORS + encodeURIComponent(url));
+    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    const d = json?.data;
+    if (!d || d.f43 === undefined) return null;
+
+    // f43/f44等价格为整数×100，需÷100（fltt=2时已是实际值）
+    const price   = parseFloat(d.f43)  || 0;
+    const high    = parseFloat(d.f44)  || 0;
+    const low     = parseFloat(d.f45)  || 0;
+    const open    = parseFloat(d.f46)  || 0;
+    const vol     = parseInt(d.f47)    || 0;   // 成交量（手）
+    const amt     = parseFloat(d.f48)  || 0;   // 成交额（元）
+    const prev    = parseFloat(d.f60)  || 0;   // 昨收
+    const chgPct  = parseFloat(d.f170) || 0;   // 涨跌幅%
+    const chgAbs  = parseFloat(d.f169) || 0;   // 涨跌额
+    const turn    = parseFloat(d.f168) || 0;   // 换手率%
+    const fundIn  = parseFloat(d.f62)  || 0;   // 主力净流入（元）
+    const fund5d  = parseFloat(d.f164) || 0;   // 5日净流入
+    const mktCap  = parseFloat(d.f116) || 0;   // 总市值
+    const pe      = parseFloat(d.f117) || 0;   // 市盈率
+
+    return { secid, price, high, low, open, prev, vol, amt, chgPct, chgAbs, turn, fundIn, fund5d, mktCap, pe };
+  } catch(e) {
+    console.warn('fetchEM error:', secid, e.message);
+    return null;
+  }
+}
+
+// ── 工具函数 ─────────────────────────────────────────────
+function fmtAmt(v) {
+  if (!v) return '—';
+  if (v >= 1e8)  return (v / 1e8).toFixed(2) + '亿';
+  if (v >= 1e4)  return (v / 1e4).toFixed(0) + '万';
+  return v.toFixed(0);
+}
+function fmtVol(v) {
+  if (!v) return '—';
+  if (v >= 10000) return (v / 10000).toFixed(2) + '万手';
+  return v + '手';
+}
+function fmtCap(v) {
+  if (!v) return '—';
+  if (v >= 1e12) return (v / 1e12).toFixed(2) + '万亿';
+  if (v >= 1e8)  return (v / 1e8).toFixed(0) + '亿';
+  return v.toFixed(0);
+}
+function fmtFund(v) {
+  if (!v) return '—';
+  const sign = v > 0 ? '+' : '';
+  if (Math.abs(v) >= 1e8) return sign + (v / 1e8).toFixed(2) + '亿';
+  if (Math.abs(v) >= 1e4) return sign + (v / 1e4).toFixed(0) + '万';
+  return sign + v.toFixed(0);
+}
+
+// ── 渲染列表 ─────────────────────────────────────────────
+function renderList() {
+  const filterMap = { a:'A股', hk:'港股', us:'美股', gold:'黄金' };
+  const items = WATCHLIST.filter(s => curFilter === 'all' || s.market === filterMap[curFilter]);
+  document.getElementById('watchlist').innerHTML = items.map(s => {
+    const d = stockData[s.secid];
+    return d ? cardHTML(s, d) : skelCard(s);
+  }).join('');
+}
+
+function skelCard(s) {
+  return `<div class="skel-card">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <div><div style="font-weight:600;font-size:15px;margin-bottom:5px">${s.name}</div>
+      <span class="skel" style="width:70px"></span></div>
+      <div style="text-align:right"><span class="skel" style="width:65px;margin-bottom:6px;display:block"></span>
+      <span class="skel" style="width:45px"></span></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <span class="skel" style="flex:1"></span><span class="skel" style="flex:1"></span><span class="skel" style="flex:1"></span>
+    </div>
+  </div>`;
+}
+
+function cardHTML(s, d) {
+  const dir   = d.chgPct > 0.05 ? 'up' : d.chgPct < -0.05 ? 'down' : 'flat';
+  const sign  = d.chgPct >= 0 ? '+' : '';
+  const price = d.price >= 100 ? d.price.toFixed(2) : d.price >= 1 ? d.price.toFixed(3) : d.price.toFixed(4);
+  // 资金信号
+  const fundDir = d.fundIn > 5e6 ? '流入' : d.fundIn < -5e6 ? '流出' : '中性';
+  const fundCls = fundDir==='流入'?'b-up':fundDir==='流出'?'b-down':'b-flat';
+  // 换手率信号
+  const turnSig = d.turn > 5 ? '活跃' : d.turn > 2 ? '正常' : '低迷';
+  const turnCls = d.turn > 5 ? 'b-up' : d.turn < 1 ? 'b-flat' : 'b-flat';
+  // 幅度信号
+  const ampSig  = Math.abs(d.chgPct) > 5 ? '大幅波动' : Math.abs(d.chgPct) > 2 ? '明显波动' : '正常';
+  const ampCls  = Math.abs(d.chgPct) > 5 ? 'b-up' : 'b-flat';
+  return `<div class="stock-card" onclick="openDetail('${s.secid}')">
+    <div class="card-top">
+      <div><div class="sname">${s.name}</div><div class="scode">${s.code} · ${s.market}</div></div>
+      <div class="sprice">
+        <div class="pval ${dir}">${price}</div>
+        <div class="pchg ${dir}">${sign}${d.chgPct.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div class="card-metrics">
+      <div class="metric"><div class="mlabel">成交额</div><div class="mval">${fmtAmt(d.amt)}</div></div>
+      <div class="metric"><div class="mlabel">换手率</div><div class="mval">${d.turn ? d.turn.toFixed(2)+'%' : '—'}</div></div>
+      <div class="metric"><div class="mlabel">主力净流入</div><div class="mval" style="color:${d.fundIn>0?'var(--red)':d.fundIn<0?'var(--green)':'var(--text2)'}">${fmtFund(d.fundIn)}</div></div>
+    </div>
+    <div class="badges">
+      <span class="badge ${dir==='up'?'b-up':dir==='down'?'b-down':'b-flat'}">${d.chgPct>=0?'▲':'▼'}${Math.abs(d.chgPct).toFixed(2)}%</span>
+      <span class="badge ${fundCls}">主力${fundDir}</span>
+      <span class="badge ${turnCls}">换手${turnSig}</span>
+      ${Math.abs(d.chgPct)>5?`<span class="badge b-up">⚡${ampSig}</span>`:''}
+    </div>
+  </div>`;
+}
+
+// ── 详情面板 ─────────────────────────────────────────────
+function openDetail(secid) {
+  curSecid     = secid;
+  const s = WATCHLIST.find(x => x.secid === secid) || { name: secid, market:'—', code: secid };
+  const d = stockData[secid];
+  if (!d) { showToast('数据加载中，请稍候'); return; }
+
+  const dir    = d.chgPct > 0.05 ? 'up' : d.chgPct < -0.05 ? 'down' : 'flat';
+  const sign   = d.chgPct >= 0 ? '+' : '';
+  const price  = d.price >= 100 ? d.price.toFixed(2) : d.price.toFixed(3);
+  const chgAbs = (d.chgAbs >= 0 ? '+' : '') + d.chgAbs.toFixed(2);
+
+  // RSI 简易估算（用涨跌幅代替，真实需K线数据）
+  const rsiEst = 50 + d.chgPct * 2;
+  const rsi    = Math.min(95, Math.max(5, Math.round(rsiEst)));
+
+  // 资金进出比例条
+  const fundPct= d.fundIn ? Math.min(100, Math.abs(d.fundIn) / (d.amt || 1e9) * 100) : 0;
+  const fundDir= d.fundIn > 5e6 ? '主力净流入' : d.fundIn < -5e6 ? '主力净流出' : '主力中性';
+  const fundCol= d.fundIn > 0 ? 'var(--red)' : d.fundIn < 0 ? 'var(--green)' : 'var(--text3)';
+
+  document.getElementById('panelContent').innerHTML = `
+    <div class="ph">
+      <div><div class="pname">${s.name}</div><div class="pcode">${s.code} · ${s.market} · 东方财富</div></div>
+      <div class="pprice">
+        <div class="ppval ${dir}">${price}</div>
+        <div class="ppchg ${dir}">${sign}${d.chgPct.toFixed(2)}% (${chgAbs})</div>
+      </div>
+    </div>
+
+    <div class="pgrid">
+      <div class="pmetric"><div class="pmlabel">今日最高</div><div class="pmval ${d.high>=d.prev?'up':''}">${d.high.toFixed(2)}</div></div>
+      <div class="pmetric"><div class="pmlabel">今日最低</div><div class="pmval ${d.low<d.prev?'down':''}">${d.low.toFixed(2)}</div></div>
+      <div class="pmetric"><div class="pmlabel">今日开盘</div><div class="pmval">${d.open.toFixed(2)}</div></div>
+      <div class="pmetric"><div class="pmlabel">昨日收盘</div><div class="pmval">${d.prev.toFixed(2)}</div></div>
+      <div class="pmetric"><div class="pmlabel">成交量</div><div class="pmval">${fmtVol(d.vol)}</div></div>
+      <div class="pmetric"><div class="pmlabel">成交额</div><div class="pmval">${fmtAmt(d.amt)}</div></div>
+      <div class="pmetric"><div class="pmlabel">换手率</div><div class="pmval">${d.turn ? d.turn.toFixed(2)+'%' : '—'}</div></div>
+      <div class="pmetric"><div class="pmlabel">总市值</div><div class="pmval">${fmtCap(d.mktCap)}</div></div>
+    </div>
+
+    <div class="slabel">资金流向（东方财富）</div>
+    <div class="irow">
+      <div class="iname">今日主力净流入</div>
+      <div><div class="ival" style="color:${fundCol}">${fmtFund(d.fundIn)}</div><div class="isig">${fundDir}</div></div>
+    </div>
+    <div style="margin:6px 0 10px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">主力净流入占成交额比</div>
+      <div class="fund-bar"><div class="fund-fill" style="width:${fundPct.toFixed(1)}%;background:${fundCol}"></div></div>
+    </div>
+    <div class="irow">
+      <div class="iname">5日主力净流入</div>
+      <div><div class="ival" style="color:${d.fund5d>0?'var(--red)':d.fund5d<0?'var(--green)':'var(--text2)'}">${fmtFund(d.fund5d)}</div><div class="isig">近5个交易日</div></div>
+    </div>
+
+    <div class="slabel">技术参考</div>
+    <div class="irow">
+      <div class="iname">RSI 参考值</div>
+      <div>
+        <div class="ival ${rsi>60?'up':rsi<40?'down':'flat'}">${rsi}</div>
+        <div class="isig">${rsi>70?'超买区间':rsi<30?'超卖区间':rsi>55?'偏强':'中性'}</div>
+      </div>
+    </div>
+    <div class="irow">
+      <div class="iname">今日振幅</div>
+      <div>
+        <div class="ival">${d.prev ? ((d.high-d.low)/d.prev*100).toFixed(2)+'%' : '—'}</div>
+        <div class="isig">(最高-最低)÷昨收</div>
+      </div>
+    </div>
+    <div class="irow">
+      <div class="iname">市盈率 (PE)</div>
+      <div>
+        <div class="ival">${d.pe > 0 ? d.pe.toFixed(1) : '—'}</div>
+        <div class="isig">${d.pe > 50 ? '估值偏高' : d.pe > 20 ? '估值适中' : d.pe > 0 ? '估值偏低' : '暂无数据'}</div>
+      </div>
+    </div>
+
+    <div class="tip-box">
+      📡 数据来源：东方财富 push2.eastmoney.com 实时接口<br>
+      ⏱ A股交易时段数据实时更新，非交易时段显示收盘价<br>
+      ⚠️ 以上数据仅供参考，不构成投资建议，投资有风险
+    </div>
+
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshOne('${secid}')">🔄 刷新此股数据</button>
+    <button class="close-btn" onclick="closePanel()">关闭</button>
+  `;
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+async function refreshOne(secid) {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '刷新中…'; }
+  const d = await fetchEM(secid);
+  if (d) { stockData[secid] = d; renderList(); openDetail(secid); }
+  else showToast('刷新失败，东方财富接口暂时不可用');
+}
+
+function closePanel(e) {
+  if (e && e.target !== document.getElementById('overlay')) return;
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── 搜索 ─────────────────────────────────────────────────
+async function doSearch() {
+  const raw = document.getElementById('searchInput').value.trim();
+  if (!raw) return;
+  const code = raw.toUpperCase();
+
+  // 自动识别市场
+  let secid;
+  if (/^\d{6}$/.test(raw)) {
+    // A股：6开头=沪市，其他=深市
+    secid = raw.startsWith('6') ? `1.${raw}` : `0.${raw}`;
+  } else if (/^\d{5}$/.test(raw) || /^\d{4,5}$/.test(raw)) {
+    // 港股：补全5位
+    secid = `116.0${raw.padStart(4,'0')}`;
+  } else if (/^[A-Z]{1,5}$/.test(code)) {
+    // 美股
+    secid = `105.${code}`;
+  } else {
+    showToast('格式：A股6位数字 / 港股4-5位 / 美股英文代码');
+    return;
+  }
+
+  showToast('查询中…');
+  const d = await fetchEM(secid);
+  if (d) {
+    stockData[secid] = d;
+    if (!WATCHLIST.find(s => s.secid === secid)) {
+      const mkt = secid.startsWith('1.')||secid.startsWith('0.') ? 'A股' : secid.startsWith('116.') ? '港股' : '美股';
+      WATCHLIST.unshift({ secid, name: code, market: mkt, code });
+    }
+    renderList();
+    setTimeout(() => openDetail(secid), 200);
+  } else {
+    showToast('未找到该股票，请确认代码正确');
+  }
+  document.getElementById('searchInput').value = '';
+}
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key==='Enter') doSearch(); });
+
+// ── 批量刷新 ─────────────────────────────────────────────
+async function refreshAll() {
+  document.getElementById('statusBar').textContent = '⏳ 正在从东方财富获取行情…';
+  renderList();
+  const results = await Promise.allSettled(WATCHLIST.map(s => fetchEM(s.secid)));
+  let ok = 0;
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) { stockData[WATCHLIST[i].secid] = r.value; ok++; }
+  });
+  renderList();
+  const now = new Date();
+  const t   = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('statusBar').textContent =
+    ok > 0 ? `✅ 东方财富数据 · 更新于 ${t} · ${ok}/${WATCHLIST.length} 支` : '⚠️ 获取失败，请检查网络';
+  document.getElementById('liveDot').style.background = ok > 0 ? 'var(--green)' : 'var(--red)';
+  updateTime();
+}
+
+// ── 工具 ─────────────────────────────────────────────────
+function switchTab(el, f) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  curFilter = f;
+  renderList();
+}
+
+function updateTime() {
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const isA = (h===9&&m>=30)||(h>=10&&h<11)||(h===11&&m<=30)||(h>=13&&h<15);
+  document.getElementById('mktStatus').textContent =
+    `A股${isA?'交易中':'已收盘'} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function showToast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function showAddTip() {
+  showToast('在搜索框输入：A股6位数字 / 港股4-5位 / 美股英文');
+}
+
+function showHelp() {
+  alert('📋 代码格式说明\n\nA股：600519（茅台）300750（宁德）\n港股：00700（腾讯）09988（阿里）\n美股：AAPL  TSLA  NVDA\n\n数据来源：东方财富实时接口\nA股交易时段(9:30-15:00)实时更新');
+}
+
+// ── 启动 ─────────────────────────────────────────────────
+updateTime();
+setInterval(updateTime, 30000);
+renderList();
+refreshAll();
+setInterval(refreshAll, 3 * 60 * 1000); // 每3分钟自动刷新
+</script>
+</body>
+</html>
